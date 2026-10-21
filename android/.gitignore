@@ -1,0 +1,8 @@
+.gradle/
+.idea/
+.kotlin/
+local.properties
+build/
+*.iml
+# los modelos los copia compilar.bat desde resultados/oe3/ptq_int8 (no se duplican)
+*/src/main/assets/

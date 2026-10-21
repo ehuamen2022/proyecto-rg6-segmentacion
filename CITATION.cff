@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "Si usas este código, cítalo así."
+title: "Segmentación de instancias de conectores coaxiales RG6"
+type: software
+authors:
+  - given-names: "Edison"
+version: "1.0"
+date-released: "2026-10-20"
+license: AGPL-3.0
+repository-code: "https://github.com/ehuamen2022/proyecto-rg6-segmentacion"
