@@ -1,0 +1,20 @@
+# Datos, resultados y material de trabajo: no se publican
+data_*/
+resultados/
+informes/
+borradores/
+referencias/
+
+# Colab / Python
+.ipynb_checkpoints/
+__pycache__/
+
+# Android: compilación y archivos que se generan
+android/**/src/main/assets/
+android/**/src/test/resources/referencia/
+android/.gradle/
+android/.kotlin/
+android/**/build/
+android/local.properties
+*.iml
+.idea/
