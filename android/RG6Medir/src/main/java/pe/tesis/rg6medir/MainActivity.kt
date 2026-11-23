@@ -21,52 +21,67 @@ import pe.tesis.rg6.comun.Overlay
 import java.util.concurrent.Executors
 
 /**
- * RG6 Medir (OE3): mide en el teléfono la latencia del modelo en 5 modos (INT8/FP32, 4/2 hilos, NNAPI).
- *  - "Modo": cambia el modo de la vista previa (para encuadrar la escena).
- *  - "Medir": ejecuta el protocolo completo (unos 8 minutos) y lo guarda en Documents/RG6Medir/registro.csv.
+ * RG6 Medir (OE3): mide en el teléfono la latencia del modelo en 4 modos (INT8 y FP32, con 4 y 2 hilos).
+ * El botón «Medir» ejecuta el protocolo completo (unos 6 minutos) y lo guarda en Documents/RG6Medir/registro.csv.
  */
 class MainActivity : ComponentActivity() {
     private val hilo = Executors.newSingleThreadExecutor()     // una inferencia a la vez
 
     override fun onCreate(estado: Bundle?) {
         super.onCreate(estado)
-        val vista = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FIT_CENTER }
+        val vista = PreviewView(this)
+        vista.scaleType = PreviewView.ScaleType.FIT_CENTER
         val capa = Overlay(this)
-        val texto = TextView(this).apply {
-            textSize = 15f; setTextColor(Color.WHITE); setShadowLayer(6f, 0f, 0f, Color.BLACK); setPadding(24, 64, 24, 0)
+        val texto = TextView(this)
+        texto.textSize = 15f
+        texto.setTextColor(Color.WHITE)
+        texto.setShadowLayer(6f, 0f, 0f, Color.BLACK)
+        texto.setPadding(24, 64, 24, 0)
+
+        // el medidor recibe cada cuadro de la cámara; aquí solo se muestra lo que devuelve
+        val medidor = Medidor(this) { resultado, info ->
+            capa.mostrar(resultado, listOf("rg6Bien", "rg6Mal"))
+            runOnUiThread { texto.text = "$info\nrg6Bien: ${resultado.conteo[0]}   rg6Mal: ${resultado.conteo[1]}" }
         }
-        val medidor = Medidor(this) { r, t ->
-            capa.mostrar(r, listOf("rg6Bien", "rg6Mal"))
-            runOnUiThread { texto.text = "$t\nrg6Bien: ${r.conteo[0]}   rg6Mal: ${r.conteo[1]}" }
-        }
-        val boton = { t: String, f: Button.() -> Unit -> Button(this).apply { text = t; setOnClickListener { f() } } }
-        val bModo = boton("Modo") { if (!medidor.midiendo) medidor.modo = (medidor.modo + 1) % MODOS.size }
-        val bMedir = boton("Medir") { if (!medidor.midiendo) medidor.medir() }.apply { setTextColor(Color.WHITE) }
-        val barra = LinearLayout(this).apply {
-            listOf(bModo, bMedir).forEach { addView(it, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)) }
-        }
+
+        val bMedir = Button(this)
+        bMedir.text = "Medir"
+        bMedir.setTextColor(Color.WHITE)
+        bMedir.setOnClickListener { if (!medidor.midiendo) medidor.medir() }
+        val barra = LinearLayout(this)
+        barra.addView(bMedir, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+
+        // cada medio segundo se actualizan el texto y el color del botón
         val ui = Handler(Looper.getMainLooper())
-        ui.post(object : Runnable {                                // estado visible de la medición
+        ui.post(object : Runnable {
             override fun run() {
                 bMedir.text = when {
                     !medidor.midiendo -> "Medir"
                     medidor.enfriando -> "Pausa de 30 s"
                     else -> "Midiendo ${medidor.modo + 1}/${MODOS.size}"
                 }
-                bMedir.backgroundTintList = ColorStateList.valueOf(if (medidor.midiendo) Color.rgb(198, 40, 40) else Color.rgb(21, 101, 192))
-                bModo.isEnabled = !medidor.midiendo
+                val color = if (medidor.midiendo) Color.rgb(198, 40, 40) else Color.rgb(21, 101, 192)    // rojo o azul
+                bMedir.backgroundTintList = ColorStateList.valueOf(color)
                 ui.postDelayed(this, 500)
             }
         })
-        setContentView(FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
-            keepScreenOn = true                                    // la medición no se corta
-            addView(vista); addView(capa); addView(texto)
-            addView(barra, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM).apply { bottomMargin = 120 })
-        })
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-            if (ok) Camara.iniciar(this, vista, hilo, medidor) else texto.text = "Sin permiso de cámara no se puede medir."
-        }.launch(Manifest.permission.CAMERA)
+
+        val pantalla = FrameLayout(this)
+        pantalla.setBackgroundColor(Color.BLACK)
+        pantalla.keepScreenOn = true            // la pantalla no se apaga durante la medición
+        pantalla.addView(vista)
+        pantalla.addView(capa)
+        pantalla.addView(texto)
+        val abajo = FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM)
+        abajo.bottomMargin = 120
+        pantalla.addView(barra, abajo)
+        setContentView(pantalla)
+
+        val pedirPermiso = registerForActivityResult(ActivityResultContracts.RequestPermission()) { concedido ->
+            if (concedido) Camara.iniciar(this, vista, hilo, medidor)
+            else texto.text = "Sin permiso de cámara no se puede medir."
+        }
+        pedirPermiso.launch(Manifest.permission.CAMERA)
     }
 
     override fun onDestroy() {

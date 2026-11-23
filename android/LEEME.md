@@ -5,7 +5,7 @@ detección:
 
 | App | Para qué | Qué guarda en el celular |
 |---|---|---|
-| **RG6 Medir** | Medir la latencia en el celular (OE3): 5 modos, 5 cuadros de calentamiento + 100 medidos por modo, 30 s de pausa entre modos | `Documents/RG6Medir/registro.csv` |
+| **RG6 Medir** | Medir la latencia en el celular (OE3): 4 modos, 5 cuadros de calentamiento + 100 medidos por modo, 30 s de pausa entre modos | `Documents/RG6Medir/registro.csv` |
 | **RG6 Contador** | Uso en campo: detectar y contar `rg6Bien` / `rg6Mal` en vivo, con una foto o desde la galería, y guardar evidencia | `Pictures/RG6Contador/` (foto original y segmentada) y `Documents/RG6Contador/capturas.csv` |
 
 ## Estructura
@@ -30,7 +30,7 @@ carpeta de compilación.
 
 ## Compilar e instalar
 
-1. Activa la **depuración USB** en el celular y conéctalo al PC (acepta el aviso "¿Permitir depuración USB?").
+1. Activa la **depuración USB** en el celular y conéctalo al PC (acepta el aviso «¿Permitir depuración USB?»).
 2. Doble clic en `compilar.bat`. Hace cuatro pasos:
    1. copia `android/` a `C:\RG6final\android` (Gradle no compila bien dentro de Google Drive);
    2. copia `yolo11nseg_int8_conv_only_dyn.onnx`, `yolo11nseg_fp32_dyn.onnx` y `classes.json` a los assets;
@@ -43,16 +43,15 @@ Si cambias el código, cámbialo **aquí** (en Drive) y vuelve a ejecutar `compi
 ## Medir (RG6 Medir)
 
 1. Prepara la escena (p. ej. una foto de test en el monitor del PC) y encuádrala con la vista previa.
-   El botón "Modo" solo cambia el modo de la vista previa.
 2. Condiciones: modo avión, **sin cable USB** (cargar cambia la temperatura), sin ahorro de batería. Anótalas.
-3. Pulsa "Medir" y no muevas el celular. Tarda unos 8 minutos (5 modos y 4 pausas de 30 s).
-   El botón muestra "Midiendo 1/5", "Pausa de 30 s", etc., y vuelve a "Medir" al terminar.
+3. Pulsa «Medir» y no muevas el celular. Tarda unos 6 minutos (4 modos y 3 pausas de 30 s).
+   El botón muestra «Midiendo 1/4», «Pausa de 30 s», etc., y vuelve a «Medir» al terminar.
 4. Conecta el celular, copia `Documents/RG6Medir/registro.csv` (Almacenamiento interno) a
    `resultados/oe3/android/registro.csv` en Drive y ejecuta `notebooks/notebook_objetivo3/resumen_android.ipynb`.
 
 Detalles de la medición:
-- Modos: `ONNX INT8 · CPU 4 hilos`, `ONNX INT8 · CPU 2 hilos`, `ONNX FP32 · CPU 4 hilos`, `ONNX FP32 · CPU 2 hilos`
-  y `ONNX INT8 · NNAPI`. Si NNAPI no funciona en el teléfono, la app lo avisa y lo salta.
+- Modos: `ONNX INT8 · CPU 4 hilos`, `ONNX INT8 · CPU 2 hilos`, `ONNX FP32 · CPU 4 hilos`, `ONNX FP32 · CPU 2 hilos`.
+  Si un modo no funciona en el teléfono, la app lo avisa y pasa al siguiente.
 - Entrada fija de 1024×768 (vertical, como la evaluación rectangular del OE3) y umbral F1-óptimo por clase de
   `classes.json`.
 - `total_ms` = preproceso (cuadro de cámara → bitmap derecho → letterbox → tensor) + inferencia + post-proceso
@@ -76,5 +75,5 @@ python referencia_ultralytics.py ..\resultados\oe3\ptq_int8 ..\data_estratificad
 
 ## Versiones
 
-Android Gradle Plugin 9.2.1 | Gradle 9.4.1 | compileSdk 36 | minSdk 29 (Android 10) | onnxruntime-android 1.27.0
-(la misma versión que el cuaderno de cuantización) | CameraX 1.6.2.
+Android Gradle Plugin 9.2.1 · Gradle 9.4.1 · compileSdk 36 · minSdk 29 (Android 10) · onnxruntime-android 1.27.0
+(la misma versión que el cuaderno de cuantización) · CameraX 1.6.2.

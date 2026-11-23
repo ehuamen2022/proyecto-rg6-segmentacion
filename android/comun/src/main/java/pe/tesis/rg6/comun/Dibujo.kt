@@ -1,79 +1,108 @@
 package pe.tesis.rg6.comun
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.RectF
 import android.view.View
 import kotlin.math.min
 
-val COLORES = intArrayOf(Color.rgb(0, 200, 83), Color.rgb(255, 23, 68))    // rg6Bien verde, rg6Mal rojo
+// rg6Bien en verde y rg6Mal en rojo
+val COLORES = intArrayOf(Color.rgb(0, 200, 83), Color.rgb(255, 23, 68))
 
 /**
- * Dibuja máscaras, cajas y etiquetas de un Resultado.
- * imagenADestino: transforma coordenadas de la FOTO original a las del lienzo destino.
+ * Dibuja las máscaras, cajas y etiquetas de un Resultado.
+ * fotoADestino: pasa coordenadas de la foto original a las del lienzo donde se dibuja.
  */
 object Dibujo {
-    private val pMascara = Paint(Paint.FILTER_BITMAP_FLAG)
-    private val pCaja = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val pTexto = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; isFakeBoldText = true }
-    private val pFondo = Paint()
+    private val pinturaMascara = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val pinturaCaja = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val pinturaTexto = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        isFakeBoldText = true
+    }
+    private val pinturaFondo = Paint()
 
-    fun dibujar(c: Canvas, r: Resultado, nombres: List<String>, imagenADestino: Matrix) {
-        // entrada del modelo -> foto original (deshace el letterbox)
-        val entradaAImagen = Matrix().apply {
-            setTranslate(-r.lb.izq.toFloat(), -r.lb.arr.toFloat())
-            postScale(1f / r.lb.r, 1f / r.lb.r)
-        }
-        val total = Matrix(entradaAImagen).apply { postConcat(imagenADestino) }
-        val escala = total.mapRadius(1f)
-        pCaja.strokeWidth = (3f * escala).coerceIn(3f, 8f)
-        pTexto.textSize = (16f * escala).coerceIn(28f, 46f)
+    fun dibujar(lienzo: Canvas, resultado: Resultado, nombres: List<String>, fotoADestino: Matrix) {
+        // de la entrada del modelo a la foto original (se deshace el letterbox)
+        val lb = resultado.letterbox
+        val entradaAFoto = Matrix()
+        entradaAFoto.setTranslate(-lb.izquierda.toFloat(), -lb.arriba.toFloat())
+        entradaAFoto.postScale(1f / lb.escala, 1f / lb.escala)
+        // y de la foto al lienzo
+        val transformacion = Matrix(entradaAFoto)
+        transformacion.postConcat(fotoADestino)
 
-        for (d in r.dets) {
+        val escala = transformacion.mapRadius(1f)
+        pinturaCaja.strokeWidth = (3f * escala).coerceIn(3f, 8f)
+        pinturaTexto.textSize = (16f * escala).coerceIn(28f, 46f)
+
+        for (d in resultado.detecciones) {
             val color = COLORES[d.clase % COLORES.size]
-            // máscara (resolución entrada/4) -> entrada (x4) -> destino
-            val bmp = mascaraBitmap(d, Color.argb(110, Color.red(color), Color.green(color), Color.blue(color)))
-            c.save()
-            c.concat(total)
-            c.scale(4f, 4f)
-            c.drawBitmap(bmp, 0f, 0f, pMascara)
-            c.restore()
-            val caja = RectF(d.caja.x1, d.caja.y1, d.caja.x2, d.caja.y2).also { total.mapRect(it) }
-            pCaja.color = color
-            c.drawRect(caja, pCaja)
+
+            // la máscara está a 1/4 de la entrada: se agranda x4 y se lleva al lienzo
+            val colorMascara = Color.argb(110, Color.red(color), Color.green(color), Color.blue(color))
+            val imagenMascara = mascaraABitmap(d, colorMascara)
+            lienzo.save()
+            lienzo.concat(transformacion)
+            lienzo.scale(4f, 4f)
+            lienzo.drawBitmap(imagenMascara, 0f, 0f, pinturaMascara)
+            lienzo.restore()
+
+            // caja
+            val caja = RectF(d.caja.x1, d.caja.y1, d.caja.x2, d.caja.y2)
+            transformacion.mapRect(caja)
+            pinturaCaja.color = color
+            lienzo.drawRect(caja, pinturaCaja)
+
+            // etiqueta con la clase y la puntuación
             val etiqueta = "${nombres[d.clase]} %.2f".format(d.score)
-            val ancho = pTexto.measureText(etiqueta)
-            pFondo.color = color
-            c.drawRect(caja.left, caja.top - pTexto.textSize - 6, caja.left + ancho + 10, caja.top, pFondo)
-            c.drawText(etiqueta, caja.left + 5, caja.top - 6, pTexto)
+            val anchoTexto = pinturaTexto.measureText(etiqueta)
+            pinturaFondo.color = color
+            lienzo.drawRect(caja.left, caja.top - pinturaTexto.textSize - 6, caja.left + anchoTexto + 10, caja.top, pinturaFondo)
+            lienzo.drawText(etiqueta, caja.left + 5, caja.top - 6, pinturaTexto)
         }
     }
 
-    private fun mascaraBitmap(d: Deteccion, color: Int): Bitmap {
-        val px = IntArray(d.mascara.size) { if (d.mascara[it]) color else 0 }
-        return Bitmap.createBitmap(px, d.mascaraAncho, d.mascaraAlto, Bitmap.Config.ARGB_8888)
+    private fun mascaraABitmap(d: Deteccion, color: Int): Bitmap {
+        val pixeles = IntArray(d.mascara.size)
+        for (i in pixeles.indices) {
+            if (d.mascara[i]) pixeles[i] = color
+        }
+        return Bitmap.createBitmap(pixeles, d.mascaraAncho, d.mascaraAlto, Bitmap.Config.ARGB_8888)
     }
 
-    /** Copia de la foto con las detecciones dibujadas encima (foto segmentada). */
-    fun sobreFoto(foto: Bitmap, r: Resultado, nombres: List<String>): Bitmap {
-        val out = foto.copy(Bitmap.Config.ARGB_8888, true)
-        dibujar(Canvas(out), r, nombres, Matrix())
-        return out
+    /** Copia de la foto con las detecciones dibujadas encima (la foto segmentada). */
+    fun sobreFoto(foto: Bitmap, resultado: Resultado, nombres: List<String>): Bitmap {
+        val copia = foto.copy(Bitmap.Config.ARGB_8888, true)
+        dibujar(Canvas(copia), resultado, nombres, Matrix())
+        return copia
     }
 }
 
-/** Capa transparente sobre la vista de la cámara que dibuja las detecciones del cuadro en vivo. */
+/** Capa transparente encima de la cámara que dibuja las detecciones del cuadro en vivo. */
 class Overlay(ctx: Context) : View(ctx) {
-    @Volatile private var res: Resultado? = null
+    @Volatile private var resultado: Resultado? = null
     private var nombres: List<String> = emptyList()
 
-    fun mostrar(r: Resultado?, n: List<String> = nombres) { res = r; nombres = n; postInvalidate() }
+    fun mostrar(nuevo: Resultado?, nombresClases: List<String> = nombres) {
+        resultado = nuevo
+        nombres = nombresClases
+        postInvalidate()
+    }
 
-    override fun onDraw(c: Canvas) {
-        val r = res ?: return
-        // el cuadro se ve con FIT_CENTER (igual que la vista previa, ambas 4:3)
-        val s = min(width / r.anchoImg.toFloat(), height / r.altoImg.toFloat())
-        val ox = (width - r.anchoImg * s) / 2
-        val oy = (height - r.altoImg * s) / 2
-        Dibujo.dibujar(c, r, nombres, Matrix().apply { setScale(s, s); postTranslate(ox, oy) })
+    override fun onDraw(lienzo: Canvas) {
+        val r = resultado ?: return
+        // la vista previa usa FIT_CENTER: la imagen se escala sin deformar y se centra (las dos son 4:3)
+        val escala = min(width / r.anchoImg.toFloat(), height / r.altoImg.toFloat())
+        val margenX = (width - r.anchoImg * escala) / 2
+        val margenY = (height - r.altoImg * escala) / 2
+        val fotoAPantalla = Matrix()
+        fotoAPantalla.setScale(escala, escala)
+        fotoAPantalla.postTranslate(margenX, margenY)
+        Dibujo.dibujar(lienzo, r, nombres, fotoAPantalla)
     }
 }
